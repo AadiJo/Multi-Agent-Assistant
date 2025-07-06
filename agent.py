@@ -3,6 +3,7 @@ import subprocess
 import time
 import socket
 import sys
+import json
 
 # Color codes for terminal output
 class Colors:
@@ -158,30 +159,43 @@ User question: {user_question}
         "model": model,
         "system": system_prompt.strip(),
         "prompt": prompt.strip(),
-        "stream": False
+        "stream": True  # Enable streaming
     }
 
     try:
-        res = requests.post("http://localhost:11434/api/generate", json=payload)
-        return res.json()["response"]
+        response = requests.post("http://localhost:11434/api/generate", json=payload, stream=True)
+        full_response = ""
+        
+        for line in response.iter_lines():
+            if line:
+                try:
+                    json_response = json.loads(line.decode('utf-8'))
+                    if 'response' in json_response:
+                        token = json_response['response']
+                        full_response += token
+                        
+                        # Print token with appropriate color
+                        if token.strip().startswith('ACTION:') or 'ACTION:' in full_response.split('\n')[-1]:
+                            print(f"{Colors.RED}{token}{Colors.RESET}", end='', flush=True)
+                        else:
+                            print(f"{Colors.LIGHT_BLUE}{token}{Colors.RESET}", end='', flush=True)
+                        
+                    if json_response.get('done', False):
+                        break
+                except json.JSONDecodeError:
+                    continue
+        
+        return full_response
     except Exception as e:
         print("Failed to query Ollama:", e)
         return "Sorry, I couldn't process that."
 
 def format_response_with_colors(response):
-    """Format the response with colored action items"""
+    """Format the response with colored action items - now used for final cleanup"""
     lines = response.split('\n')
-    formatted_lines = []
-    
-    for line in lines:
-        if line.strip().startswith('ACTION:'):
-            # Highlight action items in red
-            formatted_lines.append(f"{Colors.RED}{line}{Colors.RESET}")
-        else:
-            # Regular text in light blue
-            formatted_lines.append(f"{Colors.LIGHT_BLUE}{line}{Colors.RESET}")
-    
-    return '\n'.join(formatted_lines)
+    # This function is now mainly for ensuring proper line formatting
+    # since colors are applied during streaming
+    return response
 
 
 def main():
@@ -205,9 +219,9 @@ def main():
         q = input("Ask a weather-related question (or type 'exit'): ").strip()
         if q.lower() in ("exit", "quit"):
             break
+        print()  # Add a newline before the response
         answer = ask_weather_agent(q, location, weather)
-        formatted_answer = format_response_with_colors(answer)
-        print(f"\n{formatted_answer}\n")
+        print("\n")  # Add newlines after the response
 
 if __name__ == "__main__":
     main()
