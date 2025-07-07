@@ -1,0 +1,173 @@
+import json
+import requests
+import subprocess
+import socket
+import sys
+import time
+from abc import ABC, abstractmethod
+
+OLLAMA_MODEL = "mistral"
+OLLAMA_URL = "http://localhost:11434/api/generate"
+
+# Color codes for terminal output
+class Colors:
+    LIGHT_BLUE = '\033[94m'
+    RED = '\033[91m'
+    RESET = '\033[0m'
+
+
+def ensure_ollama_running():
+    """Ensure Ollama server is running"""
+    def is_port_open(host, port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex((host, port)) == 0
+
+    def is_ollama_installed():
+        try:
+            result = subprocess.run(
+                ["ollama", "--version"], 
+                capture_output=True, 
+                text=True, 
+                timeout=10
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            return False
+
+    if not is_ollama_installed():
+        print("Ollama is not installed or not accessible. Please install it from https://ollama.com")
+        print("Make sure Ollama is added to your system PATH.")
+        sys.exit(1)
+
+    if not is_port_open("localhost", 11434):
+        print("Starting Ollama server...")
+        subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(5)
+        if not is_port_open("localhost", 11434):
+            print("Failed to start Ollama. Is it installed correctly?")
+            sys.exit(1)
+
+
+def ensure_model_downloaded(model=OLLAMA_MODEL):
+    """Ensure the specified model is downloaded"""
+    print(f"Checking if model '{model}' is available...")
+    models = requests.get("http://localhost:11434/api/tags").json()
+    if not any(model in m["name"] for m in models.get("models", [])):
+        print(f"Pulling model '{model}'...")
+        subprocess.run(["ollama", "pull", model], check=True)
+
+
+class BaseAgent(ABC):
+    """Base class for all agents with streaming support"""
+    
+    def __init__(self, model=OLLAMA_MODEL):
+        self.model = model
+    
+    @abstractmethod
+    def get_system_prompt(self):
+        """Return the system prompt for this agent"""
+        pass
+    
+    @abstractmethod
+    def prepare_prompt(self, user_message):
+        """Prepare the prompt for this agent given a user message"""
+        pass
+    
+    def stream_response(self, user_message):
+        """Stream the response from Ollama"""
+        system_prompt = self.get_system_prompt()
+        prompt = self.prepare_prompt(user_message)
+        
+        payload = {
+            "model": self.model,
+            "system": system_prompt,
+            "prompt": prompt,
+            "stream": True
+        }
+        
+        try:
+            response = requests.post(OLLAMA_URL, json=payload, stream=True)
+            first_token = True
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        json_response = json.loads(line.decode('utf-8'))
+                        if 'response' in json_response:
+                            token = json_response['response']
+                            # Strip leading whitespace from the first token only
+                            if first_token:
+                                token = token.lstrip()
+                                first_token = False
+                            yield token
+                        if json_response.get('done', False):
+                            break
+                    except json.JSONDecodeError:
+                        continue
+        except Exception as e:
+            yield f"Error: {str(e)}"
+    
+    def stream_response_with_colors(self, user_message):
+        """Stream response with colored output for terminal use"""
+        full_response = ""
+        for token in self.stream_response(user_message):
+            full_response += token
+            # Print token with appropriate color for ACTION items
+            if token.strip().startswith('ACTION:') or 'ACTION:' in full_response.split('\n')[-1]:
+                print(f"{Colors.RED}{token}{Colors.RESET}", end='', flush=True)
+            else:
+                print(f"{Colors.LIGHT_BLUE}{token}{Colors.RESET}", end='', flush=True)
+        return full_response
+    
+    @abstractmethod
+    def get_agent_name(self):
+        """Return the display name of this agent"""
+        pass
+    
+    @abstractmethod 
+    def get_prompt_text(self):
+        """Return the prompt text for user input"""
+        pass
+    
+    def run_cli(self):
+        """Run the agent in command-line interface mode"""
+        print(f"AI {self.get_agent_name()} is starting...")
+        
+        ensure_ollama_running()
+        ensure_model_downloaded()
+        
+        # Agent-specific initialization
+        if hasattr(self, 'initialize'):
+            if not self.initialize():
+                return
+        
+        print(f"\n{self.get_agent_name()} is ready!\n")
+        
+        while True:
+            q = input(f"{self.get_prompt_text()} (or type 'exit'): ").strip()
+            if q.lower() in ("exit", "quit"):
+                break
+            print()  # Add a newline before the response
+            self.stream_response_with_colors(q)
+            print("\n")  # Add newlines after the response
+
+
+class SimpleAgent(BaseAgent):
+    """Simple agent that takes a system prompt and uses it directly"""
+    
+    def __init__(self, system_prompt, agent_name="Assistant", prompt_text="Ask a question", model=OLLAMA_MODEL):
+        super().__init__(model)
+        self._system_prompt = system_prompt
+        self._agent_name = agent_name
+        self._prompt_text = prompt_text
+    
+    def get_system_prompt(self):
+        return self._system_prompt
+    
+    def prepare_prompt(self, user_message):
+        return user_message
+    
+    def get_agent_name(self):
+        return self._agent_name
+    
+    def get_prompt_text(self):
+        return self._prompt_text

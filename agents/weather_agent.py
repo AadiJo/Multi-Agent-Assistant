@@ -5,13 +5,25 @@ import socket
 import sys
 import json
 
+# Handle both relative and absolute imports
+try:
+    from .base import BaseAgent
+except ImportError:
+    from base import BaseAgent
+
 # Color codes for terminal output
 class Colors:
     LIGHT_BLUE = '\033[94m'
     RED = '\033[91m'
     RESET = '\033[0m'
 
-OLLAMA_MODEL = "mistral" # response model
+OLLAMA_MODEL = "mistral"
+
+# Cache for weather data
+_location_cache = None
+_weather_cache = None
+_cache_time = None
+
 
 def ensure_ollama_running():
     def is_port_open(host, port):
@@ -20,7 +32,6 @@ def ensure_ollama_running():
 
     def is_ollama_installed():
         try:
-            # Try to run 'ollama --version' to check if it's installed
             result = subprocess.run(
                 ["ollama", "--version"], 
                 capture_output=True, 
@@ -52,6 +63,7 @@ def ensure_model_downloaded(model=OLLAMA_MODEL):
         print(f"Pulling model '{model}'...")
         subprocess.run(["ollama", "pull", model], check=True)
 
+
 def get_location():
     try:
         response = requests.get("http://ip-api.com/json/").json()
@@ -65,6 +77,7 @@ def get_location():
     except:
         print("Could not fetch your location.")
         return None
+
 
 def get_weather(lat, lon):
     url = (
@@ -81,8 +94,32 @@ def get_weather(lat, lon):
         print("Could not get weather data.")
         return None
 
-def ask_weather_agent(user_question, location_info, weather_data, model=OLLAMA_MODEL):
-    system_prompt = """
+
+def get_cached_weather_data():
+    """Get cached weather data or fetch new if cache is stale"""
+    global _location_cache, _weather_cache, _cache_time
+    
+    current_time = time.time()
+    # Cache for 10 minutes
+    if (_cache_time is None or 
+        current_time - _cache_time > 600 or 
+        _location_cache is None or 
+        _weather_cache is None):
+        
+        print("Fetching fresh weather data...")
+        _location_cache = get_location()
+        if _location_cache:
+            _weather_cache = get_weather(_location_cache['lat'], _location_cache['lon'])
+            _cache_time = current_time
+    
+    return _location_cache, _weather_cache
+
+
+class WeatherAgent(BaseAgent):
+    """Weather agent that provides detailed weather information"""
+    
+    def get_system_prompt(self):
+        return """
 You are a helpful weather assistant that analyzes comprehensive weather data to answer user questions.
 
 AVAILABLE DATA:
@@ -105,46 +142,51 @@ YOUR TASK:
 - Mention specific times, temperatures in Fahrenheit, and conditions when relevant
 - Use Fahrenheit for all temperature references
 - Directly answer the user's question based on the data provided, and don't give anything unnecessary.
-- End your response with a clear action item or conclusion on a new line (this will be highlighted in red)
+- End your response with a clear action item or conclusion on a new line
 - When the user gives greetings or small talk, don't answer with weather data, just acknowledge their greeting.
 
 Be conversational but precise. Always ground your answers in the actual data provided.
 """
+    
+    def prepare_prompt(self, user_message):
+        location, weather = get_cached_weather_data()
+        if not location or not weather:
+            return "I'm sorry, I couldn't fetch weather data at the moment."
+        
+        location_str = f"{location['city']}, {location['region']}, {location['country']}"
+        
+        # Format current conditions
+        current = weather['current']
+        current_summary = (
+            f"Current: {current['temperature_2m']}°F, "
+            f"{current['precipitation']}in precip, "
+            f"wind {current['wind_speed_10m']}mph, "
+            f"{current['relative_humidity_2m']}% humidity, "
+            f"weather code {current['weather_code']}"
+        )
+        
+        # Format hourly data (next 24-48 hours for context)
+        hourly = weather['hourly']
+        hourly_summary = "HOURLY FORECAST (next 48 hours):\n"
+        for i in range(0, min(48, len(hourly['time']))):
+            time_str = hourly['time'][i]
+            temp = hourly['temperature_2m'][i]
+            precip = hourly['precipitation'][i] 
+            code = hourly['weather_code'][i]
+            hourly_summary += f"{time_str}: {temp}°F, {precip}in, code {code}\n"
+        
+        # Format daily data
+        daily = weather['daily']
+        daily_summary = "DAILY FORECAST:\n"
+        for i in range(len(daily['time'])):
+            date = daily['time'][i]
+            temp_max = daily['temperature_2m_max'][i]
+            temp_min = daily['temperature_2m_min'][i]
+            precip = daily['precipitation_sum'][i]
+            code = daily['weather_code'][i]
+            daily_summary += f"{date}: {temp_min}°F - {temp_max}°F, {precip}in total, code {code}\n"
 
-    location_str = f"{location_info['city']}, {location_info['region']}, {location_info['country']}"
-    
-    # Format current conditions
-    current = weather_data['current']
-    current_summary = (
-        f"Current: {current['temperature_2m']}°F, "
-        f"{current['precipitation']}in precip, "
-        f"wind {current['wind_speed_10m']}mph, "
-        f"{current['relative_humidity_2m']}% humidity, "
-        f"weather code {current['weather_code']}"
-    )
-    
-    # Format hourly data (next 24-48 hours for context)
-    hourly = weather_data['hourly']
-    hourly_summary = "HOURLY FORECAST (next 48 hours):\n"
-    for i in range(0, min(48, len(hourly['time']))):
-        time_str = hourly['time'][i]
-        temp = hourly['temperature_2m'][i]
-        precip = hourly['precipitation'][i] 
-        code = hourly['weather_code'][i]
-        hourly_summary += f"{time_str}: {temp}°F, {precip}in, code {code}\n"
-    
-    # Format daily data
-    daily = weather_data['daily']
-    daily_summary = "DAILY FORECAST:\n"
-    for i in range(len(daily['time'])):
-        date = daily['time'][i]
-        temp_max = daily['temperature_2m_max'][i]
-        temp_min = daily['temperature_2m_min'][i]
-        precip = daily['precipitation_sum'][i]
-        code = daily['weather_code'][i]
-        daily_summary += f"{date}: {temp_min}°F - {temp_max}°F, {precip}in total, code {code}\n"
-
-    prompt = f"""
+        return f"""
 Location: {location_str}
 {current_summary}
 
@@ -152,76 +194,35 @@ Location: {location_str}
 
 {daily_summary}
 
-User question: {user_question}
+User question: {user_message}
 """
 
-    payload = {
-        "model": model,
-        "system": system_prompt.strip(),
-        "prompt": prompt.strip(),
-        "stream": True  # Enable streaming
-    }
+    def get_agent_name(self):
+        return "Weather Agent"
+    
+    def get_prompt_text(self):
+        return "Ask a weather-related question"
+    
+    def initialize(self):
+        """Initialize weather data for CLI mode"""
+        location = get_location()
+        if not location:
+            return False
 
-    try:
-        response = requests.post("http://localhost:11434/api/generate", json=payload, stream=True)
-        full_response = ""
-        
-        for line in response.iter_lines():
-            if line:
-                try:
-                    json_response = json.loads(line.decode('utf-8'))
-                    if 'response' in json_response:
-                        token = json_response['response']
-                        full_response += token
-                        
-                        # Print token with appropriate color
-                        if token.strip().startswith('ACTION:') or 'ACTION:' in full_response.split('\n')[-1]:
-                            print(f"{Colors.RED}{token}{Colors.RESET}", end='', flush=True)
-                        else:
-                            print(f"{Colors.LIGHT_BLUE}{token}{Colors.RESET}", end='', flush=True)
-                        
-                    if json_response.get('done', False):
-                        break
-                except json.JSONDecodeError:
-                    continue
-        
-        return full_response
-    except Exception as e:
-        print("Failed to query Ollama:", e)
-        return "Sorry, I couldn't process that."
+        weather = get_weather(location['lat'], location['lon'])
+        if not weather:
+            return False
 
-def format_response_with_colors(response):
-    """Format the response with colored action items - now used for final cleanup"""
-    lines = response.split('\n')
-    # This function is now mainly for ensuring proper line formatting
-    # since colors are applied during streaming
-    return response
+        print(f"Detected location: {location['city']}, {location['region']}, {location['country']}")
+        print("Weather data loaded.")
+        return True
 
 
 def main():
-    print("AI Weather Agent is starting...")
+    """CLI entry point for weather agent"""
+    agent = WeatherAgent()
+    agent.run_cli()
 
-    ensure_ollama_running()
-    ensure_model_downloaded()
-
-    location = get_location()
-    if not location:
-        return
-
-    weather = get_weather(location['lat'], location['lon'])
-    if not weather:
-        return
-
-    print(f"\nDetected location: {location['city']}, {location['region']}, {location['country']}")
-    print("Weather data loaded.\n")
-
-    while True:
-        q = input("Ask a weather-related question (or type 'exit'): ").strip()
-        if q.lower() in ("exit", "quit"):
-            break
-        print()  # Add a newline before the response
-        answer = ask_weather_agent(q, location, weather)
-        print("\n")  # Add newlines after the response
 
 if __name__ == "__main__":
     main()
