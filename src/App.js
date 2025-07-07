@@ -17,6 +17,9 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [abortController, setAbortController] = useState(null);
+  const [shouldStop, setShouldStop] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -29,6 +32,12 @@ function App() {
     const userMessage = { sender: "user", text: input };
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
+    setIsStreaming(false);
+    setShouldStop(false);
+
+    // Create abort controller for this request
+    const controller = new AbortController();
+    setAbortController(controller);
 
     // Add empty bot message that we'll update as tokens arrive
     const botMessageId = Date.now();
@@ -53,6 +62,7 @@ function App() {
           agent,
           message: inputValue,
         }),
+        signal: controller.signal, // Add abort signal
       });
 
       const reader = response.body.getReader();
@@ -61,21 +71,40 @@ function App() {
       let firstToken = true;
 
       while (true) {
+        // Check if we should stop processing
+        if (shouldStop || controller.signal.aborted) {
+          reader.cancel();
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
+
+        // Check again after read
+        if (shouldStop || controller.signal.aborted) {
+          reader.cancel();
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || ""; // Keep incomplete line in buffer
 
         for (const line of lines) {
+          // Check for stop before processing each line
+          if (shouldStop || controller.signal.aborted) {
+            reader.cancel();
+            return;
+          }
+
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.token) {
-                // Remove loading state when first token arrives
+                // Remove loading state when first token arrives, but start streaming
                 if (firstToken) {
                   setIsLoading(false);
+                  setIsStreaming(true);
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === botMessageId
@@ -84,6 +113,12 @@ function App() {
                     )
                   );
                   firstToken = false;
+                }
+
+                // Check for stop after updating message
+                if (shouldStop || controller.signal.aborted) {
+                  reader.cancel();
+                  return;
                 }
 
                 // Update the bot message with new token
@@ -96,6 +131,7 @@ function App() {
                 );
               }
               if (data.done) {
+                setIsStreaming(false);
                 break;
               }
             } catch (e) {
@@ -105,20 +141,52 @@ function App() {
         }
       }
     } catch (err) {
-      console.error("Error:", err);
+      if (err.name === "AbortError") {
+        // Request was aborted - just remove loading state, don't add stop message
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMessageId ? { ...msg, isLoading: false } : msg
+          )
+        );
+      } else {
+        console.error("Error:", err);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMessageId
+              ? { ...msg, text: "Error contacting agent.", isLoading: false }
+              : msg
+          )
+        );
+      }
+    } finally {
       setIsLoading(false);
+      setIsStreaming(false);
+      setAbortController(null);
+      setShouldStop(false);
+    }
+  };
+
+  const handleStop = () => {
+    if (abortController) {
+      setShouldStop(true);
+      abortController.abort();
+      setIsLoading(false);
+      setIsStreaming(false);
+      setAbortController(null);
+
+      // Just remove the loading state without adding stop message
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === botMessageId
-            ? { ...msg, text: "Error contacting agent.", isLoading: false }
-            : msg
-        )
+        prev.map((msg) => (msg.isLoading ? { ...msg, isLoading: false } : msg))
       );
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === "Enter") handleSend();
+    if (e.key === "Enter" && !isLoading && !isStreaming) {
+      handleSend();
+    } else if (e.key === "Escape" && (isLoading || isStreaming)) {
+      handleStop();
+    }
   };
 
   return (
@@ -181,10 +249,19 @@ function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder="Ask anything"
+            placeholder={
+              isLoading || isStreaming
+                ? "Press Escape to stop..."
+                : "Ask anything"
+            }
+            disabled={isLoading || isStreaming}
           />
-          <button onClick={handleSend} disabled={!input.trim() || isLoading}>
-            ↑
+          <button
+            onClick={isLoading || isStreaming ? handleStop : handleSend}
+            disabled={!input.trim() && !isLoading && !isStreaming}
+            className={isLoading || isStreaming ? "stop-button" : "send-button"}
+          >
+            {isLoading || isStreaming ? "⏹" : "↑"}
           </button>
         </div>
       </div>

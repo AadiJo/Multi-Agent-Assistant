@@ -156,6 +156,12 @@ body {
   border-color: #10a37f;
 }
 
+.input-box input:disabled {
+  background: #2f2f2f;
+  color: #8e8ea0;
+  cursor: not-allowed;
+}
+
 .input-box input::placeholder {
   color: #8e8ea0;
 }
@@ -176,6 +182,9 @@ body {
   font-size: 1rem;
   font-weight: bold;
   transition: background-color 0.2s;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .input-box button:hover:not(:disabled) {
@@ -185,6 +194,30 @@ body {
 .input-box button:disabled {
   background: #565869;
   cursor: not-allowed;
+}
+
+.input-box .stop-button {
+  background: #e74c3c;
+  font-size: 0.9rem;
+  line-height: 2rem;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0;
+  margin: 0;
+}
+
+.input-box .stop-button:hover:not(:disabled) {
+  background: #c0392b;
+}
+
+.input-box .send-button {
+  background: #10a37f;
+  text-align: center;
+  line-height: 2rem;
+}
+
+.input-box .send-button:hover:not(:disabled) {
+  background: #0d8f6f;
 }
 
 /* Scrollbar styling */
