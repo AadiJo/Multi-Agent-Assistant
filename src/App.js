@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
-import axios from "axios";
 
 const AGENTS = [
   "Weather",
@@ -208,7 +207,7 @@ function App() {
             ))}
           </select>
         </div>
-        <h1 className="title">Agents</h1>
+        <h1 className="title">Multi-Agent Assistant</h1>
         <div className="header-spacer"></div>
       </div>
       <div className="chat-window">
