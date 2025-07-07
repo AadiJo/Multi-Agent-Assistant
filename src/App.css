@@ -204,3 +204,28 @@ body {
 .chat-window::-webkit-scrollbar-thumb:hover {
   background: #6e6e80;
 }
+
+/* Loading spinner */
+.loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #565869;
+  border-radius: 50%;
+  border-top-color: #10a37f;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-message {
+  display: flex;
+  align-items: center;
+  color: #8e8ea0;
+  font-style: italic;
+}

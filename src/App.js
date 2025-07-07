@@ -16,6 +16,7 @@ function App() {
   const [agent, setAgent] = useState("Weather");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -27,10 +28,16 @@ function App() {
 
     const userMessage = { sender: "user", text: input };
     setMessages((prev) => [...prev, userMessage]);
+    setIsLoading(true);
 
     // Add empty bot message that we'll update as tokens arrive
     const botMessageId = Date.now();
-    const botMessage = { sender: "bot", text: "", id: botMessageId };
+    const botMessage = {
+      sender: "bot",
+      text: "",
+      id: botMessageId,
+      isLoading: true,
+    };
     setMessages((prev) => [...prev, botMessage]);
 
     const inputValue = input;
@@ -51,6 +58,7 @@ function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let firstToken = true;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -65,6 +73,19 @@ function App() {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.token) {
+                // Remove loading state when first token arrives
+                if (firstToken) {
+                  setIsLoading(false);
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === botMessageId
+                        ? { ...msg, isLoading: false }
+                        : msg
+                    )
+                  );
+                  firstToken = false;
+                }
+
                 // Update the bot message with new token
                 setMessages((prev) =>
                   prev.map((msg) =>
@@ -85,10 +106,11 @@ function App() {
       }
     } catch (err) {
       console.error("Error:", err);
+      setIsLoading(false);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === botMessageId
-            ? { ...msg, text: "Error contacting agent." }
+            ? { ...msg, text: "Error contacting agent.", isLoading: false }
             : msg
         )
       );
@@ -136,7 +158,16 @@ function App() {
               {msg.sender === "user" ? (
                 <div className="message-bubble">{msg.text}</div>
               ) : (
-                <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+                <div style={{ whiteSpace: "pre-wrap" }}>
+                  {msg.isLoading ? (
+                    <div className="loading-message">
+                      <div className="loading-spinner"></div>
+                      Thinking...
+                    </div>
+                  ) : (
+                    msg.text
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -152,7 +183,7 @@ function App() {
             onKeyDown={handleKeyPress}
             placeholder="Ask anything"
           />
-          <button onClick={handleSend} disabled={!input.trim()}>
+          <button onClick={handleSend} disabled={!input.trim() || isLoading}>
             ↑
           </button>
         </div>

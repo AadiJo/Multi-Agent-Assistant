@@ -4,6 +4,7 @@ import subprocess
 import socket
 import sys
 import time
+import threading
 from abc import ABC, abstractmethod
 
 OLLAMA_MODEL = "mistral"
@@ -14,6 +15,38 @@ class Colors:
     LIGHT_BLUE = '\033[94m'
     RED = '\033[91m'
     RESET = '\033[0m'
+
+
+class LoadingAnimation:
+    """NPM-style rectangle loading animation for CLI"""
+    
+    def __init__(self):
+        self.animation_chars = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷']
+        self.running = False
+        self.thread = None
+    
+    def start(self):
+        """Start the loading animation"""
+        self.running = True
+        self.thread = threading.Thread(target=self._animate, daemon=True)
+        self.thread.start()
+    
+    def stop(self):
+        """Stop the loading animation"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=0.2)  # Add timeout to avoid hanging
+        # Clear the loading line completely and ensure cursor is at start of line
+        print('\r' + ' ' * 80 + '\r', end='', flush=True)
+    
+    def _animate(self):
+        """Run the animation loop"""
+        i = 0
+        while self.running:
+            char = self.animation_chars[i % len(self.animation_chars)]
+            print(f'\r{Colors.LIGHT_BLUE}{char} Thinking...{Colors.RESET}', end='', flush=True)
+            time.sleep(0.1)
+            i += 1
 
 
 def ensure_ollama_running():
@@ -108,14 +141,71 @@ class BaseAgent(ABC):
     
     def stream_response_with_colors(self, user_message):
         """Stream response with colored output for terminal use"""
+        # Start loading animation
+        loader = LoadingAnimation()
+        loader.start()
+        
         full_response = ""
-        for token in self.stream_response(user_message):
-            full_response += token
-            # Print token with appropriate color for ACTION items
-            if token.strip().startswith('ACTION:') or 'ACTION:' in full_response.split('\n')[-1]:
-                print(f"{Colors.RED}{token}{Colors.RESET}", end='', flush=True)
-            else:
-                print(f"{Colors.LIGHT_BLUE}{token}{Colors.RESET}", end='', flush=True)
+        first_token = True
+        
+        try:
+            # Get system prompt first (this shouldn't print anything)
+            system_prompt = self.get_system_prompt()
+            
+            # Stop loading animation before prepare_prompt (which might print things)
+            loader.stop()
+            
+            # Prepare prompt (this might print status messages)
+            prompt = self.prepare_prompt(user_message)
+            
+            # Restart loading animation for the actual LLM call
+            loader = LoadingAnimation()
+            loader.start()
+            
+            # Now make the streaming request
+            payload = {
+                "model": self.model,
+                "system": system_prompt,
+                "prompt": prompt,
+                "stream": True
+            }
+            
+            response = requests.post(OLLAMA_URL, json=payload, stream=True)
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        json_response = json.loads(line.decode('utf-8'))
+                        if 'response' in json_response:
+                            token = json_response['response']
+                            
+                            # Stop loading animation when first token arrives
+                            if first_token:
+                                loader.stop()
+                                # Strip leading whitespace from the first token only
+                                token = token.lstrip()
+                                first_token = False
+                            
+                            full_response += token
+                            # Print token with appropriate color for ACTION items
+                            if token.strip().startswith('ACTION:') or 'ACTION:' in full_response.split('\n')[-1]:
+                                print(f"{Colors.RED}{token}{Colors.RESET}", end='', flush=True)
+                            else:
+                                print(f"{Colors.LIGHT_BLUE}{token}{Colors.RESET}", end='', flush=True)
+                        
+                        if json_response.get('done', False):
+                            break
+                    except json.JSONDecodeError:
+                        continue
+        
+        except Exception as e:
+            full_response = f"Error: {str(e)}"
+            print(f"{Colors.RED}{full_response}{Colors.RESET}", end='', flush=True)
+        
+        finally:
+            # Always ensure loader is stopped, even if an exception occurs
+            loader.stop()
+        
         return full_response
     
     @abstractmethod
@@ -147,7 +237,7 @@ class BaseAgent(ABC):
             if q.lower() in ("exit", "quit"):
                 break
             print()  # Add a newline before the response
-            self.stream_response_with_colors(q)
+            response = self.stream_response_with_colors(q)
             print("\n")  # Add newlines after the response
 
 
