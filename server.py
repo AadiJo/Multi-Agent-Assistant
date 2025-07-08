@@ -2,6 +2,7 @@ import subprocess
 import socket
 import time
 import json
+import requests
 from threading import Thread
 from flask import Flask, request, Response
 from flask_cors import CORS
@@ -50,18 +51,39 @@ agents_registry = {
 }
 
 
+@app.route("/api/models", methods=["GET"])
+def get_models():
+    """Get available Ollama models"""
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=10)
+        if response.status_code == 200:
+            models_data = response.json()
+            models = [model["name"] for model in models_data.get("models", [])]
+            return {"models": models}
+        else:
+            return {"models": ["mistral"]}, 500
+    except Exception as e:
+        print(f"Error fetching models: {e}")
+        return {"models": ["mistral"]}, 500
+
+
 @app.route("/api/agent", methods=["POST"])
 def handle_agent():
     """Handle agent requests with streaming responses"""
     data = request.json
     agent_name = data.get("agent")
     message = data.get("message")
+    model = data.get("model", "mistral")  # Default to mistral if no model specified
 
     agent = agents_registry.get(agent_name)
     if not agent:
         def error_generator():
             yield f"data: {json.dumps({'token': 'Unknown agent.', 'done': True})}\n\n"
         return Response(error_generator(), mimetype='text/plain')
+
+    # Update agent model if different from current
+    if hasattr(agent, 'model') and agent.model != model:
+        agent.model = model
 
     def generate():
         """Generate streaming response"""

@@ -11,8 +11,45 @@ const AGENTS = [
   "Joke",
 ];
 
+// Function to process text and style <think> tags
+const processTextWithThinkTags = (text) => {
+  if (!text || typeof text !== "string") return text;
+
+  // Split text by <think> and </think> tags
+  const parts = text.split(/(<think>|<\/think>)/);
+  const result = [];
+  let isInThinkTag = false;
+  let key = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+
+    if (part === "<think>") {
+      isInThinkTag = true;
+    } else if (part === "</think>") {
+      isInThinkTag = false;
+    } else if (part) {
+      if (isInThinkTag) {
+        result.push(
+          <span key={key++} className="think-content">
+            {part}
+          </span>
+        );
+      } else {
+        result.push(part);
+      }
+    }
+  }
+
+  return result.length === 1 && typeof result[0] === "string"
+    ? result[0]
+    : result;
+};
+
 function App() {
   const [agent, setAgent] = useState("Weather");
+  const [model, setModel] = useState("mistral");
+  const [availableModels, setAvailableModels] = useState(["mistral"]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +61,27 @@ function App() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    // Fetch available models on component mount
+    const fetchModels = async () => {
+      try {
+        const response = await fetch("http://localhost:5000/api/models");
+        const data = await response.json();
+        if (data.models && data.models.length > 0) {
+          setAvailableModels(data.models);
+          // Set first model as default if mistral is not available
+          if (!data.models.includes("mistral") && data.models.length > 0) {
+            setModel(data.models[0]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching models:", error);
+        // Keep default mistral model if fetch fails
+      }
+    };
+    fetchModels();
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -60,6 +118,7 @@ function App() {
         body: JSON.stringify({
           agent,
           message: inputValue,
+          model,
         }),
         signal: controller.signal, // Add abort signal
       });
@@ -208,7 +267,20 @@ function App() {
           </select>
         </div>
         <h1 className="title">Multi-Agent Assistant</h1>
-        <div className="header-spacer"></div>
+        <div className="model-dropdown">
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="model-selector"
+            title="Select Ollama Model"
+          >
+            {availableModels.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="chat-window">
         {messages.length === 0 && (
@@ -232,7 +304,7 @@ function App() {
                       Thinking...
                     </div>
                   ) : (
-                    msg.text
+                    processTextWithThinkTags(msg.text)
                   )}
                 </div>
               )}

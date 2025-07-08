@@ -27,7 +27,23 @@ body {
   min-width: 150px;
 }
 
+.model-dropdown {
+  min-width: 150px;
+}
+
 .agent-selector {
+  background: transparent;
+  border: none;
+  color: #ececec;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  outline: none;
+  min-width: 140px;
+}
+
+.model-selector {
   background: transparent;
   border: none;
   color: #ececec;
@@ -43,7 +59,16 @@ body {
   background: #40414f;
 }
 
+.model-selector:hover {
+  background: #40414f;
+}
+
 .agent-selector:focus {
+  background: #40414f;
+  border: 1px solid #10a37f;
+}
+
+.model-selector:focus {
   background: #40414f;
   border: 1px solid #10a37f;
 }
@@ -261,4 +286,11 @@ body {
   align-items: center;
   color: #8e8ea0;
   font-style: italic;
+}
+
+/* Think tags styling */
+.think-content {
+  color: #8e8ea0;
+  font-style: italic;
+  opacity: 0.7;
 }
