@@ -21,17 +21,20 @@ A collection of AI agents built with Ollama for various tasks including weather,
 ## 🛠️ Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd <folder-name>
 ```
 
 2. Install Python dependencies:
+
 ```bash
 pip install requests flask flask-cors
 ```
 
 3. Install and start Ollama:
+
 ```bash
 # Install Ollama from https://ollama.com
 # The agents will automatically pull the required model (mistral) on first run
@@ -42,11 +45,13 @@ pip install requests flask flask-cors
 ### Web Interface
 
 Start the web server:
+
 ```bash
 python server.py
 ```
 
 Then open the React frontend:
+
 ```bash
 npm install
 npm start
@@ -59,11 +64,12 @@ Navigate to `http://localhost:3000` to use the web interface.
 Each agent can be run individually in the terminal with live streaming responses:
 
 #### Run specific agents:
+
 ```bash
 # Weather agent
 python -m agents.weather_agent
 
-# News agent  
+# News agent
 python -m agents.news_agent
 
 # Todo agent
@@ -83,6 +89,7 @@ python -m agents.joke_agent
 ```
 
 #### Or use the unified runner:
+
 ```bash
 python run_agent.py weather
 python run_agent.py news
@@ -100,11 +107,12 @@ python run_agent.py joke
 - **Auto-Setup**: Automatically starts Ollama and downloads required models
 
 ## File Structure
+
 ```
 ├── main.py                         # Web server (Flask)
 ├── run_agent.py                    # CLI runner utility
 ├── agents/                         # Agent implementations
-│   ├── __init__.py                 # Package exports  
+│   ├── __init__.py                 # Package exports
 │   └── base.py                     # Base classes with streaming support
 └── app/                            # React frontend
     ├── src/
@@ -113,4 +121,6 @@ python run_agent.py joke
 ```
 
 ## Next Steps
+
 - Chat history
+- Agent Creator
