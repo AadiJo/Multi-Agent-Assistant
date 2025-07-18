@@ -6,6 +6,17 @@ import sys
 import time
 import threading
 from abc import ABC, abstractmethod
+from typing import Optional
+
+# Import chat storage
+try:
+    from ..chat_storage import chat_storage
+except ImportError:
+    try:
+        from chat_storage import chat_storage
+    except ImportError:
+        # Fallback if chat_storage is not available
+        chat_storage = None
 
 OLLAMA_MODEL = "mistral"
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -101,10 +112,19 @@ class BaseAgent(ABC):
     def __init__(self, model=OLLAMA_MODEL):
         self.model = model
         self._loading_message = 'Thinking...'
+        self._current_session_id = None
     
     def set_loading_message(self, message):
         """Set custom loading message for background tasks"""
         self._loading_message = message
+    
+    def set_session_id(self, session_id: str):
+        """Set the current chat session ID"""
+        self._current_session_id = session_id
+    
+    def get_session_id(self) -> Optional[str]:
+        """Get the current chat session ID"""
+        return self._current_session_id
     
     @abstractmethod
     def get_system_prompt(self):
@@ -252,14 +272,34 @@ class BaseAgent(ABC):
             if not self.initialize():
                 return
         
-        print(f"\n{self.get_agent_name()} is ready!\n")
+        # Create a new chat session
+        session_id = None
+        if chat_storage:
+            session_id = chat_storage.create_chat_session(self.get_agent_name(), self.model)
+            self.set_session_id(session_id)
+            print(f"Chat session created: {session_id}")
+        
+        print(f"\n{self.get_agent_name()} is ready!")
+        if session_id:
+            print(f"Chat history will be saved to: chat_history/{session_id}.json")
+        print()
         
         while True:
             q = input(f"{self.get_prompt_text()} (or type 'exit'): ").strip()
             if q.lower() in ("exit", "quit"):
                 break
+            
+            # Store user message
+            if chat_storage and session_id:
+                chat_storage.add_message(session_id, "user", q)
+            
             print()  # Add a newline before the response
             response = self.stream_response_with_colors(q)
+            
+            # Store bot response
+            if chat_storage and session_id:
+                chat_storage.add_message(session_id, "bot", response)
+            
             print("\n")  # Add newlines after the response
 
 

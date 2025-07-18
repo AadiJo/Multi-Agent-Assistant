@@ -23,6 +23,83 @@ body {
   min-height: 60px;
 }
 
+.left-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 150px;
+}
+
+.history-button, .new-chat-button {
+  background: #404040;
+  border: none;
+  color: #ececec;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  outline: none;
+  transition: background 0.2s;
+}
+
+.history-button:hover, .new-chat-button:hover {
+  background: #505050;
+}
+
+/* Hamburger Icon */
+.hamburger-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 16px;
+  height: 12px;
+}
+
+.hamburger-icon span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #ececec;
+  transition: background 0.2s;
+}
+
+.history-button:hover .hamburger-icon span {
+  background: #ffffff;
+}
+
+/* Plus Icon */
+.plus-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.plus-icon span {
+  position: absolute;
+  background: #ececec;
+  transition: background 0.2s;
+}
+
+.plus-icon .horizontal {
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.plus-icon .vertical {
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 16px;
+  transform: translateX(-50%);
+}
+
+.new-chat-button:hover .plus-icon span {
+  background: #ffffff;
+}
+
 .agent-dropdown {
   min-width: 150px;
 }
@@ -272,7 +349,151 @@ body {
   border-radius: 50%;
   border-top-color: #10a37f;
   animation: spin 1s ease-in-out infinite;
-  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Chat History Panel */
+.chat-history-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 350px;
+  height: 100vh;
+  background: #2f2f2f;
+  border-right: 1px solid #444;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #444;
+  background: #3a3a3a;
+}
+
+.history-header h3 {
+  margin: 0;
+  color: #ececec;
+  font-size: 1.1rem;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #ececec;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: background 0.2s;
+}
+
+.close-button:hover {
+  background: #505050;
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  background: #3a3a3a;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  transition: background 0.2s;
+}
+
+.history-item:hover {
+  background: #404040;
+}
+
+.history-item-content {
+  flex: 1;
+  padding: 0.75rem;
+  cursor: pointer;
+}
+
+.history-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.agent-name {
+  font-weight: bold;
+  color: #10a37f;
+  font-size: 0.9rem;
+}
+
+.model-name {
+  font-size: 0.8rem;
+  color: #999;
+  background: #505050;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+.history-item-preview {
+  color: #ccc;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.message-count {
+  background: #505050;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+}
+
+.delete-session-button {
+  background: none;
+  border: none;
+  color: #ff6b6b;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background 0.2s;
+  margin-right: 0.5rem;
+}
+
+.delete-session-button:hover {
+  background: #505050;
+}
+
+.session-info {
+  font-size: 0.9rem;
+  color: #999;
+  margin-top: 0.5rem;
+}
+
+.message-timestamp {
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 0.25rem;
+  text-align: right;
 }
 
 @keyframes spin {

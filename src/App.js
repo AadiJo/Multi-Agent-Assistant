@@ -57,6 +57,9 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [abortController, setAbortController] = useState(null);
   const [shouldStop, setShouldStop] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [chatSessions, setChatSessions] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -82,7 +85,64 @@ function App() {
       }
     };
     fetchModels();
+    loadChatSessions();
   }, []);
+
+  const loadChatSessions = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/chat/sessions");
+      const data = await response.json();
+      setChatSessions(data.sessions || []);
+    } catch (error) {
+      console.error("Error loading chat sessions:", error);
+    }
+  };
+
+  const loadChatSession = async (sessionId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/chat/session/${sessionId}`);
+      const data = await response.json();
+      
+      if (data.messages) {
+        const formattedMessages = data.messages.map((msg, index) => ({
+          id: index,
+          sender: msg.sender,
+          text: msg.message,
+          timestamp: msg.timestamp
+        }));
+        setMessages(formattedMessages);
+        setCurrentSessionId(sessionId);
+        setAgent(data.agent_name || "Basic");
+        setModel(data.model || "mistral");
+        setShowHistory(false);
+      }
+    } catch (error) {
+      console.error("Error loading chat session:", error);
+    }
+  };
+
+  const startNewChat = () => {
+    setMessages([]);
+    setCurrentSessionId(null);
+    setShowHistory(false);
+  };
+
+  const deleteChatSession = async (sessionId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/chat/session/${sessionId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        loadChatSessions();
+        if (currentSessionId === sessionId) {
+          startNewChat();
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting chat session:", error);
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -121,6 +181,7 @@ function App() {
           agent,
           message: inputValue,
           model,
+          session_id: currentSessionId,
         }),
         signal: controller.signal, // Add abort signal
       });
@@ -204,6 +265,11 @@ function App() {
               }
               if (data.done) {
                 setIsStreaming(false);
+                // Update session ID if this was a new chat
+                if (data.session_id && !currentSessionId) {
+                  setCurrentSessionId(data.session_id);
+                  loadChatSessions(); // Refresh the sessions list
+                }
                 break;
               }
             } catch (e) {
@@ -264,12 +330,37 @@ function App() {
   return (
     <div className="container">
       <div className="header">
+        <div className="left-controls">
+          <button 
+            onClick={() => setShowHistory(!showHistory)}
+            className="history-button"
+            title="View Chats"
+          >
+            <div className="hamburger-icon">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </button>
+          <button 
+            onClick={startNewChat}
+            className="new-chat-button"
+            title="Add Chat"
+          >
+            <div className="plus-icon">
+              <span className="horizontal"></span>
+              <span className="vertical"></span>
+            </div>
+          </button>
+        </div>
         <div className="agent-dropdown">
           <select
             value={agent}
             onChange={(e) => {
               setAgent(e.target.value);
-              setMessages([]);
+              if (!currentSessionId) {
+                setMessages([]);
+              }
             }}
             className="agent-selector"
           >
@@ -296,10 +387,52 @@ function App() {
           </select>
         </div>
       </div>
+      
+      {showHistory && (
+        <div className="chat-history-panel">
+          <div className="history-header">
+            <h3>Chat History</h3>
+            <button onClick={() => setShowHistory(false)} className="close-button">×</button>
+          </div>
+          <div className="history-list">
+            {chatSessions.map((session) => (
+              <div key={session.session_id} className="history-item">
+                <div className="history-item-content" onClick={() => loadChatSession(session.session_id)}>
+                  <div className="history-item-header">
+                    <span className="agent-name">{session.agent_name}</span>
+                    <span className="model-name">{session.model}</span>
+                  </div>
+                  <div className="history-item-preview">
+                    {session.first_message}
+                  </div>
+                  <div className="history-item-meta">
+                    <span className="message-count">{session.message_count} messages</span>
+                    <span className="timestamp">{new Date(session.updated_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteChatSession(session.session_id);
+                  }}
+                  className="delete-session-button"
+                  title="Delete Session"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
       <div className="chat-window">
         {messages.length === 0 && (
           <div className="welcome-message">
             <h2>How can I help you today? 😊</h2>
+            {currentSessionId && (
+              <p className="session-info">Session: {currentSessionId}</p>
+            )}
           </div>
         )}
         {messages.map((msg, i) => (
@@ -323,6 +456,11 @@ function App() {
                 </div>
               )}
             </div>
+            {msg.timestamp && (
+              <div className="message-timestamp">
+                {new Date(msg.timestamp).toLocaleTimeString()}
+              </div>
+            )}
           </div>
         ))}
         <div ref={chatEndRef} />

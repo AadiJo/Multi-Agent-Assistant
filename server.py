@@ -4,8 +4,9 @@ import time
 import json
 import requests
 from threading import Thread
-from flask import Flask, request, Response
+from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
+from chat_storage import chat_storage
 
 # Import all agents
 from agents import (
@@ -75,6 +76,7 @@ def handle_agent():
     agent_name = data.get("agent")
     message = data.get("message")
     model = data.get("model", "mistral")  # Default to mistral if no model specified
+    session_id = data.get("session_id")  # Optional session ID
 
     agent = agents_registry.get(agent_name)
     if not agent:
@@ -85,6 +87,16 @@ def handle_agent():
     # Update agent model if different from current
     if hasattr(agent, 'model') and agent.model != model:
         agent.model = model
+
+    # Create new session if not provided
+    if not session_id:
+        session_id = chat_storage.create_chat_session(agent_name, model)
+    
+    # Set session ID for the agent
+    agent.set_session_id(session_id)
+    
+    # Store user message
+    chat_storage.add_message(session_id, "user", message)
 
     def generate():
         """Generate streaming response with loading status updates"""
@@ -151,6 +163,9 @@ def handle_agent():
                     full_response += item['token']
                     if item.get('done', False):
                         item['full_response'] = full_response
+                        item['session_id'] = session_id
+                        # Store bot response when done
+                        chat_storage.add_message(session_id, "bot", full_response)
                     yield f"data: {json.dumps(item)}\n\n"
                     
         except Exception as e:
@@ -158,6 +173,71 @@ def handle_agent():
             yield f"data: {json.dumps({'token': error_msg, 'done': True})}\n\n"
 
     return Response(generate(), mimetype='text/plain')
+
+
+@app.route("/api/chat/sessions", methods=["GET"])
+def get_chat_sessions():
+    """Get list of all chat sessions"""
+    agent_name = request.args.get('agent')
+    sessions = chat_storage.list_chat_sessions(agent_name)
+    return jsonify({"sessions": sessions})
+
+
+@app.route("/api/chat/session/<session_id>", methods=["GET"])
+def get_chat_session(session_id):
+    """Get a specific chat session"""
+    chat_data = chat_storage.load_chat_session(session_id)
+    if chat_data:
+        return jsonify(chat_data)
+    else:
+        return jsonify({"error": "Session not found"}), 404
+
+
+@app.route("/api/chat/session/<session_id>", methods=["DELETE"])
+def delete_chat_session(session_id):
+    """Delete a specific chat session"""
+    success = chat_storage.delete_chat_session(session_id)
+    if success:
+        return jsonify({"message": "Session deleted successfully"})
+    else:
+        return jsonify({"error": "Session not found"}), 404
+
+
+@app.route("/api/chat/session/<session_id>/history", methods=["GET"])
+def get_chat_history(session_id):
+    """Get chat history for a specific session"""
+    history = chat_storage.get_chat_history(session_id)
+    return jsonify({"history": history})
+
+
+@app.route("/api/chat/search", methods=["GET"])
+def search_chats():
+    """Search for chats containing specific text"""
+    query = request.args.get('q', '')
+    agent_name = request.args.get('agent')
+    
+    if not query:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+    
+    results = chat_storage.search_chats(query, agent_name)
+    return jsonify({"results": results})
+
+
+@app.route("/api/chat/session/<session_id>/export", methods=["GET"])
+def export_chat_session(session_id):
+    """Export a chat session"""
+    format_type = request.args.get('format', 'json')
+    exported_data = chat_storage.export_chat_session(session_id, format_type)
+    
+    if exported_data:
+        if format_type.lower() == 'json':
+            return Response(exported_data, mimetype='application/json')
+        elif format_type.lower() == 'txt':
+            return Response(exported_data, mimetype='text/plain')
+        else:
+            return jsonify({"error": "Unsupported format"}), 400
+    else:
+        return jsonify({"error": "Session not found"}), 404
 
 
 if __name__ == "__main__":

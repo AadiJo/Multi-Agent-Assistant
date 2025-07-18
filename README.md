@@ -12,6 +12,7 @@ A collection of AI agents built with Ollama for various tasks including weather,
 - **Quiz Agent**: Generates quizzes and flashcards on any topic
 - **Writing Feedback Agent**: Reviews writing for clarity, grammar, and coherence
 - **Joke Agent**: Tells clean jokes and shares fun facts
+- **Chat History**: Automatic storage and retrieval of all conversations with model tracking
 
 ## 📋 Prerequisites
 
@@ -109,20 +110,68 @@ python run_agent.py joke
 
 - **Live Streaming**: Responses stream in real-time as they're generated
 - **Colored Output**: Action items and conclusions highlighted in red
+- **Custom Loading Messages**: Context-aware loading messages for each agent
 - **Auto-Setup**: Automatically starts Ollama and downloads required models
+- **Chat History**: All conversations automatically saved with session IDs
 
 ## File Structure
 
 ```
-├── main.py                         # Web server (Flask)
+├── server.py                       # Flask web server
 ├── run_agent.py                    # CLI runner utility
+├── chat_storage.py                 # Chat history storage system
+├── chat_manager.py                 # Command-line chat history manager
 ├── agents/                         # Agent implementations
 │   ├── __init__.py                 # Package exports
-│   └── base.py                     # Base classes with streaming support
-└── app/                            # React frontend
-    ├── src/
-    ├── public/
-    └── package.json
+│   ├── base.py                     # Base classes with streaming support
+│   ├── basic_agent.py              # Basic conversational agent
+│   ├── weather_agent.py            # Weather information agent
+│   ├── news_agent.py               # News analysis agent
+│   ├── todo_agent.py               # Task management agent
+│   ├── stock_agent.py              # Financial advice agent
+│   ├── quiz_agent.py               # Educational quiz agent
+│   ├── writing_feedback_agent.py   # Writing analysis agent
+│   └── joke_agent.py               # Entertainment agent
+├── chat_history/                   # Stored chat sessions (auto-created)
+└── src/                            # React frontend
+    ├── App.js                      # Main React component
+    ├── App.css                     # Application styles
+    └── index.js                    # React entry point
+```
+
+## Chat History Management
+
+All conversations are automatically stored with:
+- Session IDs for easy retrieval
+- Agent and model information
+- Complete message history with timestamps
+- Search and export capabilities
+
+### Web Interface Chat History
+
+- **📚 History Button**: View all previous chat sessions
+- **➕ New Chat**: Start a fresh conversation
+- **Session Management**: Load previous conversations or delete old ones
+- **Visual Timeline**: See when conversations occurred and with which agents
+
+### Command Line Chat History
+
+```bash
+# List all chat sessions
+python chat_manager.py list
+
+# View a specific session
+python chat_manager.py view <session_id>
+
+# Search for sessions containing specific text
+python chat_manager.py search "your search query"
+
+# Delete a session
+python chat_manager.py delete <session_id>
+
+# Export a session
+python chat_manager.py export <session_id> --format json
+python chat_manager.py export <session_id> --format txt
 ```
 
 ## Next Steps
