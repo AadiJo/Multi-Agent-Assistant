@@ -4,6 +4,7 @@ A collection of AI agents built with Ollama for various tasks including weather,
 
 ## Features
 
+- **Basic Agent**: General conversation agent with no system prompt for natural chat
 - **Weather Agent**: Provides detailed weather information with location detection
 - **News Agent**: Summarizes current headlines and answers news-related questions
 - **Todo Agent**: Manages tasks and to-do lists through natural language
@@ -66,6 +67,9 @@ Each agent can be run individually in the terminal with live streaming responses
 #### Run specific agents:
 
 ```bash
+# Basic agent
+python -m agents.basic_agent
+
 # Weather agent
 python -m agents.weather_agent
 
@@ -91,6 +95,7 @@ python -m agents.joke_agent
 #### Or use the unified runner:
 
 ```bash
+python run_agent.py basic
 python run_agent.py weather
 python run_agent.py news
 python run_agent.py todo

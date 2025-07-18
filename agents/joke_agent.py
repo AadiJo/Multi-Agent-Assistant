@@ -65,11 +65,15 @@ POSITIVE IMPACT GOALS:
 - Encourage creativity and wordplay appreciation
 - Promote curiosity about the world
 
-Always aim to create content that leaves people smiling, learning something new, and feeling a bit better about their day. Humor should unite, not divide, and always respect the dignity of all people.
-""",
-            "Joke Agent",
-            "Ask for jokes, fun facts, riddles, or entertaining educational content"
+Always aim to create content that leaves people smiling, learning something new, and feeling a bit better about their day. Humor should unite, not divide, and always respect the dignity of all people.""",
+            "Joke Agent", 
+            "Ask for a joke, pun, fun fact, or humorous content on any topic"
         )
+    
+    def prepare_prompt(self, user_message):
+        # Set custom loading message for joke generation
+        self.set_loading_message("Crafting the perfect joke...")
+        return super().prepare_prompt(user_message)
 
 
 def main():

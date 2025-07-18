@@ -20,10 +20,11 @@ class Colors:
 class LoadingAnimation:
     """NPM-style rectangle loading animation for CLI"""
     
-    def __init__(self):
+    def __init__(self, message="Thinking..."):
         self.animation_chars = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷']
         self.running = False
         self.thread = None
+        self.message = message
     
     def start(self):
         """Start the loading animation"""
@@ -39,12 +40,16 @@ class LoadingAnimation:
         # Clear the loading line completely and ensure cursor is at start of line
         print('\r' + ' ' * 80 + '\r', end='', flush=True)
     
+    def update_message(self, message):
+        """Update the loading message"""
+        self.message = message
+    
     def _animate(self):
         """Run the animation loop"""
         i = 0
         while self.running:
             char = self.animation_chars[i % len(self.animation_chars)]
-            print(f'\r{Colors.LIGHT_BLUE}{char} Thinking...{Colors.RESET}', end='', flush=True)
+            print(f'\r{Colors.LIGHT_BLUE}{char} {self.message}{Colors.RESET}', end='', flush=True)
             time.sleep(0.1)
             i += 1
 
@@ -95,6 +100,11 @@ class BaseAgent(ABC):
     
     def __init__(self, model=OLLAMA_MODEL):
         self.model = model
+        self._loading_message = 'Thinking...'
+    
+    def set_loading_message(self, message):
+        """Set custom loading message for background tasks"""
+        self._loading_message = message
     
     @abstractmethod
     def get_system_prompt(self):
@@ -108,8 +118,14 @@ class BaseAgent(ABC):
     
     def stream_response(self, user_message):
         """Stream the response from Ollama"""
+        # Set default loading message
+        self.set_loading_message("Thinking...")
+        
         system_prompt = self.get_system_prompt()
         prompt = self.prepare_prompt(user_message)
+        
+        # Set final loading message for AI generation
+        self.set_loading_message("Generating response...")
         
         payload = {
             "model": self.model,
@@ -141,8 +157,11 @@ class BaseAgent(ABC):
     
     def stream_response_with_colors(self, user_message):
         """Stream response with colored output for terminal use"""
+        # Get custom loading message if available
+        loading_message = getattr(self, '_loading_message', 'Thinking...')
+        
         # Start loading animation
-        loader = LoadingAnimation()
+        loader = LoadingAnimation(loading_message)
         loader.start()
         
         full_response = ""
@@ -158,8 +177,11 @@ class BaseAgent(ABC):
             # Prepare prompt (this might print status messages)
             prompt = self.prepare_prompt(user_message)
             
+            # Get updated loading message in case it changed during prepare_prompt
+            loading_message = getattr(self, '_loading_message', 'Thinking...')
+            
             # Restart loading animation for the actual LLM call
-            loader = LoadingAnimation()
+            loader = LoadingAnimation(loading_message)
             loader.start()
             
             # Now make the streaming request

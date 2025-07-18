@@ -181,6 +181,9 @@ Always make learning engaging, accessible, and pedagogically sound. Encourage cu
         )
         
         if should_search:
+            # Set custom loading message for web search
+            self.set_loading_message("Searching for current information...")
+            
             # Extract the main topic for searching
             search_query = user_message
             
@@ -203,6 +206,9 @@ Always make learning engaging, accessible, and pedagogically sound. Encourage cu
             print(f"Searching web for current information on: {search_query}")
             web_results = search_web(search_query)
             
+            # Update loading message for quiz generation
+            self.set_loading_message("Creating quiz questions...")
+            
             if web_results:
                 # Format web information for the prompt
                 web_info = "\n\nCURRENT WEB INFORMATION:\n"
@@ -214,6 +220,9 @@ Always make learning engaging, accessible, and pedagogically sound. Encourage cu
                 web_info += "\nPlease use this current information to create relevant and up-to-date quiz questions when appropriate.\n"
                 
                 return user_message + web_info
+        else:
+            # Set loading message for regular quiz generation
+            self.set_loading_message("Creating quiz questions...")
         
         return user_message
 

@@ -59,9 +59,19 @@ IMPORTANT: Always include a disclaimer that this is not personalized financial a
 """
     
     def prepare_prompt(self, user_message):
+        # Set custom loading message for market data fetching
+        self.set_loading_message("Fetching market data...")
+        
         # Extract stock symbols from user message if any
         market_data = self._get_market_overview()
+        
+        # Update loading message for specific stock analysis
+        self.set_loading_message("Analyzing stock information...")
+        
         stock_data = self._extract_and_fetch_stocks(user_message)
+        
+        # Set final loading message for AI processing
+        self.set_loading_message("Preparing financial analysis...")
         
         context = f"""
 CURRENT MARKET OVERVIEW:

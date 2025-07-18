@@ -67,6 +67,11 @@ Always encourage good organizational habits and provide context for why certain 
             "Todo Agent", 
             "Enter a todo command (add, remove, list, prioritize, etc.) or ask for productivity advice"
         )
+    
+    def prepare_prompt(self, user_message):
+        # Set custom loading message for productivity analysis
+        self.set_loading_message("Organizing your tasks...")
+        return super().prepare_prompt(user_message)
 
 
 def main():

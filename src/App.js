@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
 const AGENTS = [
+  "Basic",
   "Weather",
   "News",
   "To-Do",
@@ -47,7 +48,7 @@ const processTextWithThinkTags = (text) => {
 };
 
 function App() {
-  const [agent, setAgent] = useState("Weather");
+  const [agent, setAgent] = useState("Basic");
   const [model, setModel] = useState("mistral");
   const [availableModels, setAvailableModels] = useState(["mistral"]);
   const [messages, setMessages] = useState([]);
@@ -103,6 +104,7 @@ function App() {
       text: "",
       id: botMessageId,
       isLoading: true,
+      loadingMessage: "Thinking...", // Default loading message
     };
     setMessages((prev) => [...prev, botMessage]);
 
@@ -158,6 +160,18 @@ function App() {
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6));
+              
+              // Handle status updates (loading messages)
+              if (data.status === 'loading') {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === botMessageId
+                      ? { ...msg, loadingMessage: data.message }
+                      : msg
+                  )
+                );
+              }
+              
               if (data.token) {
                 // Remove loading state when first token arrives, but start streaming
                 if (firstToken) {
@@ -203,7 +217,7 @@ function App() {
         // Request was aborted - just remove loading state, don't add stop message
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === botMessageId ? { ...msg, isLoading: false } : msg
+            msg.id === botMessageId ? { ...msg, isLoading: false, loadingMessage: "" } : msg
           )
         );
       } else {
@@ -211,7 +225,7 @@ function App() {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === botMessageId
-              ? { ...msg, text: "Error contacting agent.", isLoading: false }
+              ? { ...msg, text: "Error contacting agent.", isLoading: false, loadingMessage: "" }
               : msg
           )
         );
@@ -234,7 +248,7 @@ function App() {
 
       // Just remove the loading state without adding stop message
       setMessages((prev) =>
-        prev.map((msg) => (msg.isLoading ? { ...msg, isLoading: false } : msg))
+        prev.map((msg) => (msg.isLoading ? { ...msg, isLoading: false, loadingMessage: "" } : msg))
       );
     }
   };
@@ -301,7 +315,7 @@ function App() {
                   {msg.isLoading ? (
                     <div className="loading-message">
                       <div className="loading-spinner"></div>
-                      Thinking...
+                      {msg.loadingMessage || "Thinking..."}
                     </div>
                   ) : (
                     processTextWithThinkTags(msg.text)

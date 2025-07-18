@@ -5,6 +5,7 @@ from .stock_agent import StockAgent
 from .quiz_agent import QuizAgent
 from .writing_feedback_agent import WritingFeedbackAgent
 from .joke_agent import JokeAgent
+from .basic_agent import BasicAgent
 
 __all__ = [
     'WeatherAgent',
@@ -13,5 +14,6 @@ __all__ = [
     'StockAgent',
     'QuizAgent',
     'WritingFeedbackAgent',
-    'JokeAgent'
+    'JokeAgent',
+    'BasicAgent'
 ]

@@ -60,11 +60,20 @@ Always encourage users to seek multiple sources and think critically about the i
 """
     
     def prepare_prompt(self, user_message):
+        # Set custom loading message for news data fetching
+        self.set_loading_message("Fetching latest news...")
+        
         # Fetch current headlines
         headlines = self._fetch_headlines()
         
+        # Update loading message for analysis
+        self.set_loading_message("Analyzing news relevance...")
+        
         # Check if user is asking about a specific topic
         topic_analysis = self._analyze_topic_relevance(user_message, headlines)
+        
+        # Set final loading message for AI processing
+        self.set_loading_message("Preparing news analysis...")
         
         context = f"""
 CURRENT TOP HEADLINES:

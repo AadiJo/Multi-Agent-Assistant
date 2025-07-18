@@ -149,9 +149,15 @@ Be conversational but precise. Always ground your answers in the actual data pro
 """
     
     def prepare_prompt(self, user_message):
+        # Set custom loading message for weather data fetching
+        self.set_loading_message("Fetching weather data...")
+        
         location, weather = get_cached_weather_data()
         if not location or not weather:
             return "I'm sorry, I couldn't fetch weather data at the moment."
+        
+        # Reset to default message for AI processing
+        self.set_loading_message("Analyzing weather conditions...")
         
         location_str = f"{location['city']}, {location['region']}, {location['country']}"
         

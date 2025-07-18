@@ -10,7 +10,7 @@ from flask_cors import CORS
 # Import all agents
 from agents import (
     WeatherAgent, NewsAgent, TodoAgent, StockAgent, 
-    QuizAgent, WritingFeedbackAgent, JokeAgent
+    QuizAgent, WritingFeedbackAgent, JokeAgent, BasicAgent
 )
 
 app = Flask(__name__)
@@ -48,6 +48,7 @@ agents_registry = {
     "Quiz": QuizAgent(),
     "Writing Feedback": WritingFeedbackAgent(),
     "Joke": JokeAgent(),
+    "Basic": BasicAgent(),
 }
 
 
@@ -86,13 +87,72 @@ def handle_agent():
         agent.model = model
 
     def generate():
-        """Generate streaming response"""
+        """Generate streaming response with loading status updates"""
         full_response = ""
         try:
-            for token in agent.stream_response(message):
-                full_response += token
-                yield f"data: {json.dumps({'token': token, 'done': False})}\n\n"
-            yield f"data: {json.dumps({'token': '', 'done': True, 'full_response': full_response})}\n\n"
+            # Custom generator that yields loading messages and tokens
+            def agent_stream_with_status():
+                # Initial loading message
+                loading_message = getattr(agent, '_loading_message', 'Thinking...')
+                yield {'status': 'loading', 'message': loading_message}
+                
+                # Get system prompt (usually quick)
+                system_prompt = agent.get_system_prompt()
+                
+                # Check if loading message changed
+                current_loading_message = getattr(agent, '_loading_message', 'Thinking...')
+                if current_loading_message != loading_message:
+                    yield {'status': 'loading', 'message': current_loading_message}
+                    loading_message = current_loading_message
+                
+                # Prepare prompt (this is where agents do their background work)
+                prompt = agent.prepare_prompt(message)
+                
+                # Check if loading message changed again
+                current_loading_message = getattr(agent, '_loading_message', 'Thinking...')
+                if current_loading_message != loading_message:
+                    yield {'status': 'loading', 'message': current_loading_message}
+                    loading_message = current_loading_message
+                
+                # Now stream the actual response
+                payload = {
+                    "model": agent.model,
+                    "system": system_prompt,
+                    "prompt": prompt,
+                    "stream": True
+                }
+                
+                response = requests.post("http://localhost:11434/api/generate", json=payload, stream=True)
+                first_token = True
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            json_response = json.loads(line.decode('utf-8'))
+                            if 'response' in json_response:
+                                token = json_response['response']
+                                if first_token:
+                                    token = token.lstrip()
+                                    first_token = False
+                                yield {'token': token, 'done': False}
+                            if json_response.get('done', False):
+                                yield {'token': '', 'done': True}
+                                break
+                        except json.JSONDecodeError:
+                            continue
+            
+            # Process the generator and send appropriate responses
+            for item in agent_stream_with_status():
+                if 'status' in item:
+                    # This is a loading message
+                    yield f"data: {json.dumps(item)}\n\n"
+                elif 'token' in item:
+                    # This is a token from the AI
+                    full_response += item['token']
+                    if item.get('done', False):
+                        item['full_response'] = full_response
+                    yield f"data: {json.dumps(item)}\n\n"
+                    
         except Exception as e:
             error_msg = f"Error: {str(e)}"
             yield f"data: {json.dumps({'token': error_msg, 'done': True})}\n\n"

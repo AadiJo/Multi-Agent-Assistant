@@ -2,16 +2,17 @@
 """
 Command-line runner for all agents
 Usage: python run_agent.py [agent_name]
-Available agents: weather, news, todo, stock, quiz, writing, joke
+Available agents: basic, weather, news, todo, stock, quiz, writing, joke
 """
 
 import sys
 from agents import (
     WeatherAgent, NewsAgent, TodoAgent, StockAgent,
-    QuizAgent, WritingFeedbackAgent, JokeAgent
+    QuizAgent, WritingFeedbackAgent, JokeAgent, BasicAgent
 )
 
 AGENTS = {
+    'basic': BasicAgent,
     'weather': WeatherAgent,
     'news': NewsAgent,
     'todo': TodoAgent,
